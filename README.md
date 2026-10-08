@@ -22,11 +22,17 @@
 **Цель:** запустить Vitest в проекте с React и CSS Modules.
  
 Vitest работает поверх Vite и берёт ваш `vite.config.ts`: те же плагины, те же алиасы, поэтому отдельный конфиг для тестов обычно не нужен.
- 
+
 ```bash
-npm i -D vitest jsdom @testing-library/react @testing-library/dom \
-  @testing-library/user-event @testing-library/jest-dom \
-  @vitest/coverage-v8 @vitest/ui
+npm i -D vitest jsdom @testing-library/react @testing-library/dom
+```
+
+```bash
+npm i -D @testing-library/user-event @testing-library/jest-dom
+```
+
+```bash
+npm i -D vitest @vitest/coverage-v8 @vitest/ui
 ```
  
 Что за что отвечает:
@@ -37,15 +43,20 @@ npm i -D vitest jsdom @testing-library/react @testing-library/dom \
 - `@testing-library/user-event` — реалистичные клики и ввод.
 - `@testing-library/jest-dom` — матчеры вида `toBeInTheDocument()`.
 - `@vitest/coverage-v8`, `@vitest/ui` — покрытие и веб-интерфейс (пригодятся в уроке 10).
-**`vite.config.ts`**
+
+**`vite.config.ts`:**
  
 ```ts
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
- 
+import path from 'path'
+
 export default defineConfig({
-  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, './src'),
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
@@ -62,7 +73,8 @@ export default defineConfig({
 - `setupFiles` — файл, который выполняется перед каждым тестовым файлом.
 - `css.include: /.+/` — по умолчанию Vitest не обрабатывает CSS; с этой настройкой `*.module.css` разбирается так же, как в браузере.
 - `classNameStrategy: 'non-scoped'` — вместо хешей вроде `_primary_1x2y3` в тестах будет `primary`. Читать упавшие тесты и снапшоты становится проще.
-**`src/test/setup.ts`**
+
+**`src/test/setup.ts`:**
  
 ```ts
 import '@testing-library/jest-dom/vitest'
@@ -76,7 +88,7 @@ afterEach(() => {
  
 Первая строка подключает матчеры jest-dom к `expect` из Vitest. `cleanup` убирает отрендеренный компонент после каждого теста. Мы импортируем `describe`/`it`/`expect` явно (режим `globals` выключен), поэтому RTL не может зарегистрировать очистку автоматически.
  
-**Скрипты в `package.json`**
+**Скрипты в `package.json`:**
  
 ```json
 {
@@ -91,6 +103,7 @@ afterEach(() => {
  
 - `vitest` — режим наблюдения: перезапускает только затронутые тесты при сохранении файла.
 - `vitest run` — один прогон, подходит для CI.
+
 **Задание:** выполните `npm test`. Должны пройти все тесты. Потом сломайте одну проверку (например, `toBe(5)` → `toBe(6)`) и посмотрите, как Vitest показывает разницу.
 
 ---
