@@ -1,0 +1,25 @@
+.counter {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+.value {
+  display: block;
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
