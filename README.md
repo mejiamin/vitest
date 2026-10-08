@@ -4,8 +4,8 @@
  
 | № | Тема | Что тестируем | Файл с тестами |
 |---|------|---------------|----------------|
-| **1** | **👉 Установка и настройка** | **конфиг, setup-файл, скрипты** | **`vite.config.ts`, `src/test/setup.ts`** |
-| 2 | Первый тест: `describe`, `it`, `expect` | `add`, `divide` | `src/utils/math.test.ts` |
+| 1 | Установка и настройка | конфиг, setup-файл, скрипты | `vite.config.ts`, `src/test/setup.ts` |
+| **2** | **👉 Первый тест: `describe`, `it`, `expect`** | **`add`, `divide`** | **`src/utils/math.test.ts`** |
 | 3 | Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
 | 4 | Тест компонента: `render`, `screen`, запросы | `Button` | `src/components/Button/Button.test.tsx` |
 | 5 | События пользователя и `vi.fn()` | `Counter`, `Button` | `src/components/Counter/Counter.test.tsx` |
@@ -17,184 +17,125 @@
  
 ---
  
-## Урок 1. Установка и настройка (*уже готова*)
+## Урок 2. Первый тест: `describe`, `it`, `expect`
  
-**Цель:** запустить Vitest в проекте с React и CSS Modules.
+**Цель:** понять структуру теста.
  
-Vitest работает поверх Vite и берёт ваш `vite.config.ts`: те же плагины, те же алиасы, поэтому отдельный конфиг для тестов обычно не нужен.
-
-```bash
-npm i -D vitest jsdom @testing-library/react @testing-library/dom
-```
-
-```bash
-npm i -D @testing-library/user-event @testing-library/jest-dom
-```
-
-```bash
-npm i -D vitest @vitest/coverage-v8 @vitest/ui
-```
- 
-Что за что отвечает:
- 
-- `vitest` — сам раннер.
-- `jsdom` — имитация браузерного DOM в Node.js.
-- `@testing-library/react`, `@testing-library/dom` — рендер компонентов и поиск элементов.
-- `@testing-library/user-event` — реалистичные клики и ввод.
-- `@testing-library/jest-dom` — матчеры вида `toBeInTheDocument()`.
-- `@vitest/coverage-v8`, `@vitest/ui` — покрытие и веб-интерфейс (пригодятся в уроке 10).
-
-**`vite.config.ts`:**
+Тестируемая функция (`src/utils/math.ts`):
  
 ```ts
-/// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
-import path from 'path'
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    css: {
-      include: /.+/,
-      modules: { classNameStrategy: 'non-scoped' },
-    },
-  },
-})
-```
+export const add = (a: number, b: number): number => a + b
  
-- Первая строка (`/// <reference ... />`) добавляет TypeScript знание о ключе `test`.
-- `environment: 'jsdom'` — без него `document` и `window` не существуют.
-- `setupFiles` — файл, который выполняется перед каждым тестовым файлом.
-- `css.include: /.+/` — по умолчанию Vitest не обрабатывает CSS; с этой настройкой `*.module.css` разбирается так же, как в браузере.
-- `classNameStrategy: 'non-scoped'` — вместо хешей вроде `_primary_1x2y3` в тестах будет `primary`. Читать упавшие тесты и снапшоты становится проще.
-
-**`src/test/setup.ts`:**
- 
-```ts
-import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
- 
-afterEach(() => {
-  cleanup()
-})
-```
- 
-Первая строка подключает матчеры jest-dom к `expect` из Vitest. `cleanup` убирает отрендеренный компонент после каждого теста. Мы импортируем `describe`/`it`/`expect` явно (режим `globals` выключен), поэтому RTL не может зарегистрировать очистку автоматически.
- 
-**Скрипты в `package.json`:**
- 
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
-  }
+export function divide(a: number, b: number): number {
+  if (b === 0) throw new Error('Деление на ноль')
+  return a / b
 }
 ```
  
-- `vitest` — режим наблюдения: перезапускает только затронутые тесты при сохранении файла.
-- `vitest run` — один прогон, подходит для CI.
-
-**Задание:** выполните `npm test`. Должны пройти все тесты. Потом сломайте одну проверку (например, `toBe(5)` → `toBe(6)`) и посмотрите, как Vitest показывает разницу.
-
----
-
-## Решение задания
-
-Это делается в три шага.
-
-**`src/utils/math.test.ts`:**
+Тест (`src/utils/math.test.ts`):
+ 
 ```ts
 import { describe, expect, it } from 'vitest'
-import { add } from './math'
-
+import { add, divide } from './math'
+ 
 describe('add', () => {
   it('складывает два числа', () => {
     expect(add(2, 3)).toBe(5)
   })
 })
+ 
+describe('divide', () => {
+  it('бросает ошибку при делении на ноль', () => {
+    expect(() => divide(1, 0)).toThrow('Деление на ноль')
+  })
+})
 ```
+ 
+- `describe` группирует тесты по теме.
+- `it` (или `test`, это синонимы) — один сценарий. Название читается как предложение: «add складывает два числа».
+- `expect(значение).матчер(ожидание)` — сама проверка.
+- Файлы тестов находят по маске `*.test.ts(x)` или `*.spec.ts(x)`.
+Структура теста: **подготовка → действие → проверка** (Arrange–Act–Assert). Пока она занимает одну строку, но в компонентах будет три отдельных блока.
+ 
+**Правило:** чтобы проверить исключение, оберните вызов в функцию. Если написать `expect(divide(1, 0)).toThrow()`, исключение вылетит ещё до `expect`, и тест упадёт с ошибкой, а не с проверкой.
+ 
+**Задание:** добавьте функцию `subtract` и два теста для неё: с положительными и отрицательными числами.
 
-### 1. Запустите тесты
+---
 
-В терминале, в папке проекта:
+## Решение задания
 
-```bash
-npm test
-```
+Нужно изменить два файла: `src/utils/math.ts` и `src/utils/math.test.ts`.
 
-Vitest запустится в режиме наблюдения (watch) и не завершится сам. В выводе рядом с каждым файлом должна стоять зелёная галочка:
+### 1. Добавьте функцию в `src/utils/math.ts`
 
-```
- ✓ src/utils/math.test.ts
- ...
- Test Files  1 passed (1)
-```
-
-Если команда не запускается, проверьте, что в `package.json` есть скрипт `"test": "vitest"` и что вы установили пакеты из урока 1.
-
-### 2. Сломайте проверку
-
-Не останавливая Vitest, откройте `src/utils/math.test.ts` и поменяйте одну строку:
+Например, сразу после `add`:
 
 ```ts
-expect(add(2, 3)).toBe(5)   // было
-expect(add(2, 3)).toBe(6)   // стало
+export const subtract = (a: number, b: number): number => a - b
 ```
 
-Сохраните файл. Vitest сам перезапустит этот тест.
+### 2. Обновите импорт в `src/utils/math.test.ts`
 
-### 3. Прочитайте сообщение об ошибке
+Добавьте `subtract` в список импортируемых функций:
 
-Вывод будет примерно таким:
-
-```
- FAIL  src/utils/math.test.ts > add > складывает два числа
-AssertionError: expected 5 to be 6 // Object.is equality
-
-- Expected
-+ Received
-
-- 6
-+ 5
-
- ❯ src/utils/math.test.ts:6:21
-      5|   it('складывает два числа', () => {
-      6|     expect(add(2, 3)).toBe(6)
-       |                       ^
+```ts
+import { add, average, clamp, divide, subtract, unique } from './math'
 ```
 
-Как это читать:
+Если забыть этот шаг, Vitest упадёт с ошибкой вида `subtract is not defined` или `subtract is not a function`.
 
-- `FAIL … > add > складывает два числа` показывает путь к тесту: файл, блок `describe` и название `it`.
-- `expected 5 to be 6` говорит, что ожидали 6, а функция вернула 5.
-- Блок `Expected` / `Received` — это diff: `-` обозначает ожидаемое значение, `+` — фактическое. Для объектов и массивов в нём подсвечиваются только отличающиеся поля, и это особенно удобно.
-- Ниже указана точная строка в файле, где упала проверка (`6:21` — строка 6, столбец 21).
+### 3. Напишите тесты
 
-### Верните всё как было
+Добавьте новый блок `describe` рядом с блоком для `add`:
 
-Поменяйте `6` обратно на `5` и сохраните. Тест снова позеленеет.
+```ts
+describe('subtract', () => {
+  it('вычитает положительные числа', () => {
+    expect(subtract(5, 3)).toBe(2)
+  })
 
-### Что ещё попробовать в watch-режиме
+  it('работает с отрицательными числами', () => {
+    expect(subtract(-5, -3)).toBe(-2)
+  })
+})
+```
 
-Нажмите в терминале:
+Проверьте расчёт вручную: `-5 - (-3) = -5 + 3 = -2`. Минус на минус даёт плюс, поэтому результат отрицательный, но меньше по модулю, чем первое число.
 
-- `a` — запустить все тесты заново;
-- `f` — запустить только упавшие;
-- `p` — отфильтровать по имени файла;
-- `h` — показать все команды;
-- `q` — выйти.
+Если Vitest запущен в watch-режиме (`npm test`), тесты перезапустятся при сохранении, и вы увидите, что добавилось два новых зелёных теста.
 
-Для более наглядного diff сломайте проверку на массиве: в тесте `unique` замените `[3, 1, 2]` на `[3, 1, 5]`. Vitest покажет, какой именно элемент не совпал.
+### Дополнительно (по желанию)
+
+Хороший тест проверяет и случаи, где легко ошибиться. Например, порядок аргументов важен, в отличие от сложения:
+
+```ts
+it('не коммутативна: порядок аргументов важен', () => {
+  expect(subtract(3, 5)).toBe(-2)
+  expect(subtract(5, 3)).toBe(2)
+})
+```
+
+И для дробей вспомните урок 3: `0.3 - 0.1` в JavaScript даёт `0.19999999999999998`, поэтому такую проверку пишут через `toBeCloseTo`:
+
+```ts
+it('для дробей используйте toBeCloseTo', () => {
+  expect(subtract(0.3, 0.1)).toBeCloseTo(0.2)
+})
+```
+
+---
+
+## Навигация в watch-режиме (`npm test`)
+
+При запуске тестов в режиме наблюдения доступны следующие горячие клавиши:
+
+* `a` — запустить все тесты заново
+* `f` — запустить только упавшие тесты
+* `p` — фильтр тестов по имени файла
+* `t` — фильтр по названию теста
+* `h` — показать справку по всем командам
+* `q` — выйти из режима наблюдения
 
 ---
 
