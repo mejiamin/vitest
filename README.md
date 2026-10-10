@@ -4,9 +4,9 @@
  
 | № | Тема | Что тестируем | Файл с тестами |
 |---|------|---------------|----------------|
-| **1** | **👉 Установка и настройка** | **конфиг, setup-файл, скрипты** | **`vite.config.ts`, `src/test/setup.ts`** |
+| 1 | Установка и настройка | конфиг, setup-файл, скрипты | `vite.config.ts`, `src/test/setup.ts` |
 | 2 | Первый тест: `describe`, `it`, `expect` | `add`, `divide` | `src/utils/math.test.ts` |
-| 3 | Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
+| **3** | **👉 Матчеры, `it.each`, `beforeEach`** | **`clamp`, `average`, `unique`** | **`src/utils/math.test.ts`** |
 | 4 | Тест компонента: `render`, `screen`, запросы | `Button` | `src/components/Button/Button.test.tsx` |
 | 5 | События пользователя и `vi.fn()` | `Counter`, `Button` | `src/components/Counter/Counter.test.tsx` |
 | 6 | Формы и доступные запросы | `LoginForm` | `src/components/LoginForm/LoginForm.test.tsx` |
@@ -17,184 +17,142 @@
  
 ---
  
-## Урок 1. Установка и настройка (*уже готова*)
+## Урок 3. Матчеры, `it.each`, `beforeEach`
  
-**Цель:** запустить Vitest в проекте с React и CSS Modules.
+**Цель:** выбирать правильный матчер и не копировать тесты.
  
-Vitest работает поверх Vite и берёт ваш `vite.config.ts`: те же плагины, те же алиасы, поэтому отдельный конфиг для тестов обычно не нужен.
-
-```bash
-npm i -D vitest jsdom @testing-library/react @testing-library/dom
-```
-
-```bash
-npm i -D @testing-library/user-event @testing-library/jest-dom
-```
-
-```bash
-npm i -D vitest @vitest/coverage-v8 @vitest/ui
-```
- 
-Что за что отвечает:
- 
-- `vitest` — сам раннер.
-- `jsdom` — имитация браузерного DOM в Node.js.
-- `@testing-library/react`, `@testing-library/dom` — рендер компонентов и поиск элементов.
-- `@testing-library/user-event` — реалистичные клики и ввод.
-- `@testing-library/jest-dom` — матчеры вида `toBeInTheDocument()`.
-- `@vitest/coverage-v8`, `@vitest/ui` — покрытие и веб-интерфейс (пригодятся в уроке 10).
-
-**`vite.config.ts`:**
+| Матчер | Когда |
+|--------|-------|
+| `toBe(x)` | примитивы, сравнение по ссылке (`Object.is`) |
+| `toEqual(x)` | объекты и массивы по содержимому |
+| `toStrictEqual(x)` | то же, но учитывает `undefined`-поля и классы |
+| `toBeCloseTo(x)` | дробные числа |
+| `toContain(x)` | элемент в массиве или подстрока |
+| `toHaveLength(n)` | длина массива или строки |
+| `toThrow(msg)` | функция бросает ошибку |
+| `toBeTruthy()` / `toBeNull()` / `toBeUndefined()` | проверка «истинности» |
+| `.not` | отрицание любого матчера |
  
 ```ts
-/// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
-import path from 'path'
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    css: {
-      include: /.+/,
-      modules: { classNameStrategy: 'non-scoped' },
-    },
-  },
+it('для дробей используйте toBeCloseTo', () => {
+  expect(add(0.1, 0.2)).not.toBe(0.3) // 0.30000000000000004
+  expect(add(0.1, 0.2)).toBeCloseTo(0.3)
 })
 ```
  
-- Первая строка (`/// <reference ... />`) добавляет TypeScript знание о ключе `test`.
-- `environment: 'jsdom'` — без него `document` и `window` не существуют.
-- `setupFiles` — файл, который выполняется перед каждым тестовым файлом.
-- `css.include: /.+/` — по умолчанию Vitest не обрабатывает CSS; с этой настройкой `*.module.css` разбирается так же, как в браузере.
-- `classNameStrategy: 'non-scoped'` — вместо хешей вроде `_primary_1x2y3` в тестах будет `primary`. Читать упавшие тесты и снапшоты становится проще.
-
-**`src/test/setup.ts`:**
+**Параметризованные тесты** — один тест, много наборов данных:
  
 ```ts
-import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
- 
-afterEach(() => {
-  cleanup()
+it.each([
+  { value: 5, min: 0, max: 10, expected: 5 },
+  { value: -3, min: 0, max: 10, expected: 0 },
+  { value: 42, min: 0, max: 10, expected: 10 },
+])('clamp($value, $min, $max) возвращает $expected', ({ value, min, max, expected }) => {
+  expect(clamp(value, min, max)).toBe(expected)
 })
 ```
  
-Первая строка подключает матчеры jest-dom к `expect` из Vitest. `cleanup` убирает отрендеренный компонент после каждого теста. Мы импортируем `describe`/`it`/`expect` явно (режим `globals` выключен), поэтому RTL не может зарегистрировать очистку автоматически.
+`$value`, `$min` и другие подставляются в название теста из полей объекта.
  
-**Скрипты в `package.json`:**
+**Хуки жизненного цикла**
  
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
-  }
-}
+```ts
+describe('average', () => {
+  let numbers: number[]
+ 
+  beforeEach(() => {
+    numbers = [2, 4, 6] // свежие данные перед каждым тестом
+  })
+ 
+  it('считает среднее', () => {
+    expect(average(numbers)).toBe(4)
+  })
+})
 ```
  
-- `vitest` — режим наблюдения: перезапускает только затронутые тесты при сохранении файла.
-- `vitest run` — один прогон, подходит для CI.
-
-**Задание:** выполните `npm test`. Должны пройти все тесты. Потом сломайте одну проверку (например, `toBe(5)` → `toBe(6)`) и посмотрите, как Vitest показывает разницу.
+- `beforeEach` / `afterEach` — до и после каждого теста в блоке.
+- `beforeAll` / `afterAll` — один раз на блок.
+**Полезные пометки**
+ 
+- `it.skip(...)` — пропустить.
+- `it.only(...)` — запустить только этот тест (не забудьте убрать перед коммитом).
+- `it.todo('описание')` — напоминание о тесте, который ещё не написан.
+**Задание:** добавьте `it.each` для `divide` с тремя наборами и проверьте, что `unique(['a', 'a', 'b'])` возвращает `['a', 'b']`.
 
 ---
 
 ## Решение задания
 
-Это делается в три шага.
+Оба теста добавляются в `src/utils/math.test.ts`. Новые импорты не нужны: `it`, `expect`, `divide` и `unique` там уже есть.
 
-**`src/utils/math.test.ts`:**
+### 1. `it.each` для `divide`
+
+Добавьте его внутрь существующего блока `describe('divide', ...)`:
+
 ```ts
-import { describe, expect, it } from 'vitest'
-import { add } from './math'
+describe('divide', () => {
+  it('делит числа', () => {
+    expect(divide(10, 4)).toBe(2.5)
+  })
 
-describe('add', () => {
-  it('складывает два числа', () => {
-    expect(add(2, 3)).toBe(5)
+  it.each([
+    { a: 10, b: 2, expected: 5 },
+    { a: 9, b: 3, expected: 3 },
+    { a: -8, b: 2, expected: -4 },
+  ])('divide($a, $b) возвращает $expected', ({ a, b, expected }) => {
+    expect(divide(a, b)).toBe(expected)
+  })
+
+  it('бросает ошибку при делении на ноль', () => {
+    expect(() => divide(1, 0)).toThrow('Деление на ноль')
   })
 })
 ```
 
-### 1. Запустите тесты
+Vitest создаст три отдельных теста с названиями `divide(10, 2) возвращает 5`, `divide(9, 3) возвращает 3` и `divide(-8, 2) возвращает -4`. Если один набор упадёт, в отчёте будет видно, какой именно.
 
-В терминале, в папке проекта:
+Выбирайте наборы с точным результатом: `toBe` не подойдёт для чисел вроде `1 / 3`. Для них используйте `toBeCloseTo`.
 
-```bash
-npm test
-```
-
-Vitest запустится в режиме наблюдения (watch) и не завершится сам. В выводе рядом с каждым файлом должна стоять зелёная галочка:
-
-```
- ✓ src/utils/math.test.ts
- ...
- Test Files  1 passed (1)
-```
-
-Если команда не запускается, проверьте, что в `package.json` есть скрипт `"test": "vitest"` и что вы установили пакеты из урока 1.
-
-### 2. Сломайте проверку
-
-Не останавливая Vitest, откройте `src/utils/math.test.ts` и поменяйте одну строку:
+Тот же `it.each` можно записать компактнее, массивами. Тогда в названии вместо `$поле` используются `%i` (целое число) и `%d` (число):
 
 ```ts
-expect(add(2, 3)).toBe(5)   // было
-expect(add(2, 3)).toBe(6)   // стало
+it.each([
+  [10, 2, 5],
+  [9, 3, 3],
+  [-8, 2, -4],
+])('divide(%i, %i) возвращает %d', (a, b, expected) => {
+  expect(divide(a, b)).toBe(expected)
+})
 ```
 
-Сохраните файл. Vitest сам перезапустит этот тест.
+Вариант с объектами понятнее, когда параметров больше двух, потому что у каждого значения есть имя.
 
-### 3. Прочитайте сообщение об ошибке
+### 2. `unique` со строками
 
-Вывод будет примерно таким:
+Добавьте в блок `describe('unique', ...)`:
 
-```
- FAIL  src/utils/math.test.ts > add > складывает два числа
-AssertionError: expected 5 to be 6 // Object.is equality
-
-- Expected
-+ Received
-
-- 6
-+ 5
-
- ❯ src/utils/math.test.ts:6:21
-      5|   it('складывает два числа', () => {
-      6|     expect(add(2, 3)).toBe(6)
-       |                       ^
+```ts
+it('работает со строками', () => {
+  expect(unique(['a', 'a', 'b'])).toEqual(['a', 'b'])
+})
 ```
 
-Как это читать:
+Функция `unique<T>` обобщённая, поэтому TypeScript сам выведет `T = string`, и менять код функции не нужно. Для сравнения массивов используем `toEqual`, а не `toBe`: `toBe` сравнивает ссылки, а два разных массива с одинаковым содержимым не равны по ссылке.
 
-- `FAIL … > add > складывает два числа` показывает путь к тесту: файл, блок `describe` и название `it`.
-- `expected 5 to be 6` говорит, что ожидали 6, а функция вернула 5.
-- Блок `Expected` / `Received` — это diff: `-` обозначает ожидаемое значение, `+` — фактическое. Для объектов и массивов в нём подсвечиваются только отличающиеся поля, и это особенно удобно.
-- Ниже указана точная строка в файле, где упала проверка (`6:21` — строка 6, столбец 21).
+После сохранения в watch-режиме у вас должно прибавиться четыре теста: три из `it.each` и один для строк.
 
-### Верните всё как было
+---
 
-Поменяйте `6` обратно на `5` и сохраните. Тест снова позеленеет.
+## Навигация в watch-режиме (`npm test`)
 
-### Что ещё попробовать в watch-режиме
+При запуске тестов в режиме наблюдения доступны следующие горячие клавиши:
 
-Нажмите в терминале:
-
-- `a` — запустить все тесты заново;
-- `f` — запустить только упавшие;
-- `p` — отфильтровать по имени файла;
-- `h` — показать все команды;
-- `q` — выйти.
-
-Для более наглядного diff сломайте проверку на массиве: в тесте `unique` замените `[3, 1, 2]` на `[3, 1, 5]`. Vitest покажет, какой именно элемент не совпал.
+* `a` — запустить все тесты заново
+* `f` — запустить только упавшие тесты
+* `p` — фильтр тестов по имени файла
+* `t` — фильтр по названию теста
+* `h` — показать справку по всем командам
+* `q` — выйти из режима наблюдения
 
 ---
 
