@@ -6,8 +6,8 @@
 |---|------|---------------|----------------|
 | 1 | Установка и настройка | конфиг, setup-файл, скрипты | `vite.config.ts`, `src/test/setup.ts` |
 | 2 | Первый тест: `describe`, `it`, `expect` | `add`, `divide` | `src/utils/math.test.ts` |
-| **3** | **👉 Матчеры, `it.each`, `beforeEach`** | **`clamp`, `average`, `unique`** | **`src/utils/math.test.ts`** |
-| 4 | Тест компонента: `render`, `screen`, запросы | `Button` | `src/components/Button/Button.test.tsx` |
+| 3 |  Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
+| **4** | **👉 Тест компонента: `render`, `screen`, запросы** | **`Button`** | **`src/components/Button/Button.test.tsx`** |
 | 5 | События пользователя и `vi.fn()` | `Counter`, `Button` | `src/components/Counter/Counter.test.tsx` |
 | 6 | Формы и доступные запросы | `LoginForm` | `src/components/LoginForm/LoginForm.test.tsx` |
 | 7 | Асинхронность и `vi.mock` | `UserCard` | `src/components/UserCard/UserCard.test.tsx` |
@@ -17,129 +17,90 @@
  
 ---
  
-## Урок 3. Матчеры, `it.each`, `beforeEach`
+## Урок 4. Тест компонента: `render`, `screen`, запросы
  
-**Цель:** выбирать правильный матчер и не копировать тесты.
+**Цель:** отрисовать компонент и найти в нём элементы так, как их видит пользователь.
  
-| Матчер | Когда |
-|--------|-------|
-| `toBe(x)` | примитивы, сравнение по ссылке (`Object.is`) |
-| `toEqual(x)` | объекты и массивы по содержимому |
-| `toStrictEqual(x)` | то же, но учитывает `undefined`-поля и классы |
-| `toBeCloseTo(x)` | дробные числа |
-| `toContain(x)` | элемент в массиве или подстрока |
-| `toHaveLength(n)` | длина массива или строки |
-| `toThrow(msg)` | функция бросает ошибку |
-| `toBeTruthy()` / `toBeNull()` / `toBeUndefined()` | проверка «истинности» |
-| `.not` | отрицание любого матчера |
+Компонент — `src/components/Button/Button.tsx`, стили — `Button.module.css`.
  
-```ts
-it('для дробей используйте toBeCloseTo', () => {
-  expect(add(0.1, 0.2)).not.toBe(0.3) // 0.30000000000000004
-  expect(add(0.1, 0.2)).toBeCloseTo(0.3)
-})
-```
+```tsx
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { Button } from './Button'
+import styles from './Button.module.css'
  
-**Параметризованные тесты** — один тест, много наборов данных:
- 
-```ts
-it.each([
-  { value: 5, min: 0, max: 10, expected: 5 },
-  { value: -3, min: 0, max: 10, expected: 0 },
-  { value: 42, min: 0, max: 10, expected: 10 },
-])('clamp($value, $min, $max) возвращает $expected', ({ value, min, max, expected }) => {
-  expect(clamp(value, min, max)).toBe(expected)
-})
-```
- 
-`$value`, `$min` и другие подставляются в название теста из полей объекта.
- 
-**Хуки жизненного цикла**
- 
-```ts
-describe('average', () => {
-  let numbers: number[]
- 
-  beforeEach(() => {
-    numbers = [2, 4, 6] // свежие данные перед каждым тестом
+describe('Button', () => {
+  it('показывает переданный текст', () => {
+    render(<Button>Сохранить</Button>)
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
   })
  
-  it('считает среднее', () => {
-    expect(average(numbers)).toBe(4)
+  it('применяет класс выбранного варианта', () => {
+    render(<Button variant="danger">Удалить</Button>)
+    const button = screen.getByRole('button', { name: 'Удалить' })
+    expect(button).toHaveClass(styles.danger)
+    expect(button).not.toHaveClass(styles.primary)
   })
 })
 ```
  
-- `beforeEach` / `afterEach` — до и после каждого теста в блоке.
-- `beforeAll` / `afterAll` — один раз на блок.
-**Полезные пометки**
+- `render` кладёт компонент в jsdom. `screen` — точка входа для поиска.
+- Тестируем **поведение, видимое пользователю**, а не внутренности (состояние, имена функций).
+**Три семейства запросов**
  
-- `it.skip(...)` — пропустить.
-- `it.only(...)` — запустить только этот тест (не забудьте убрать перед коммитом).
-- `it.todo('описание')` — напоминание о тесте, который ещё не написан.
-**Задание:** добавьте `it.each` для `divide` с тремя наборами и проверьте, что `unique(['a', 'a', 'b'])` возвращает `['a', 'b']`.
+| Префикс | Элемента нет | Когда использовать |
+|---------|--------------|--------------------|
+| `getBy…` | бросает ошибку | элемент должен быть на странице сейчас |
+| `queryBy…` | возвращает `null` | проверить, что элемента **нет** |
+| `findBy…` | ждёт до 1000 мс, затем ошибка | элемент появится асинхронно |
+ 
+Для нескольких элементов — `getAllBy…`, `queryAllBy…`, `findAllBy…`.
+ 
+**Приоритет запросов** (от лучшего к худшему):
+ 
+1. `getByRole('button', { name: '…' })` — как видят пользователь и скринридер.
+2. `getByLabelText` — поля форм.
+3. `getByText` — нефункциональный текст.
+4. `getByTestId` — последний вариант, если ничего другого нет.
+**CSS Modules в тестах.** Не пишите `toHaveClass('primary')` вручную: импортируйте объект `styles` и используйте `styles.primary`. Тогда тест не сломается, если сменится стратегия имён классов.
+ 
+**Задание:** добавьте в тест проверку, что `variant="secondary"` даёт класс `styles.secondary`.
 
 ---
 
 ## Решение задания
 
-Оба теста добавляются в `src/utils/math.test.ts`. Новые импорты не нужны: `it`, `expect`, `divide` и `unique` там уже есть.
+Тест добавляется в `src/components/Button/Button.test.tsx`, в блок `describe('Button', ...)`, рядом с тестом для `danger`. Новые импорты не нужны: `render`, `screen`, `it`, `expect` и `styles` там уже есть.
 
-### 1. `it.each` для `divide`
-
-Добавьте его внутрь существующего блока `describe('divide', ...)`:
-
-```ts
-describe('divide', () => {
-  it('делит числа', () => {
-    expect(divide(10, 4)).toBe(2.5)
-  })
-
-  it.each([
-    { a: 10, b: 2, expected: 5 },
-    { a: 9, b: 3, expected: 3 },
-    { a: -8, b: 2, expected: -4 },
-  ])('divide($a, $b) возвращает $expected', ({ a, b, expected }) => {
-    expect(divide(a, b)).toBe(expected)
-  })
-
-  it('бросает ошибку при делении на ноль', () => {
-    expect(() => divide(1, 0)).toThrow('Деление на ноль')
-  })
+```tsx
+it('применяет класс варианта secondary', () => {
+  render(<Button variant="secondary">Отмена</Button>)
+  const button = screen.getByRole('button', { name: 'Отмена' })
+  expect(button).toHaveClass(styles.secondary)
+  expect(button).not.toHaveClass(styles.primary)
 })
 ```
 
-Vitest создаст три отдельных теста с названиями `divide(10, 2) возвращает 5`, `divide(9, 3) возвращает 3` и `divide(-8, 2) возвращает -4`. Если один набор упадёт, в отчёте будет видно, какой именно.
+Здесь два шага:
 
-Выбирайте наборы с точным результатом: `toBe` не подойдёт для чисел вроде `1 / 3`. Для них используйте `toBeCloseTo`.
+1. `toHaveClass(styles.secondary)` проверяет, что у кнопки есть класс варианта. Значение берётся из импортированного объекта `styles`, а не из строки, поэтому тест не зависит от того, как называются классы после обработки CSS Modules.
+2. `not.toHaveClass(styles.primary)` проверяет, что кнопка не осталась с классом по умолчанию. Без этой строки тест прошёл бы и в случае, когда компонент добавляет оба класса.
 
-Тот же `it.each` можно записать компактнее, массивами. Тогда в названии вместо `$поле` используются `%i` (целое число) и `%d` (число):
+Если хотите проверить все три варианта одним блоком, примените `it.each` из урока 3:
 
-```ts
-it.each([
-  [10, 2, 5],
-  [9, 3, 3],
-  [-8, 2, -4],
-])('divide(%i, %i) возвращает %d', (a, b, expected) => {
-  expect(divide(a, b)).toBe(expected)
-})
+```tsx
+it.each(['primary', 'secondary', 'danger'] as const)(
+  'применяет класс варианта %s',
+  (variant) => {
+    render(<Button variant={variant}>Кнопка</Button>)
+    expect(screen.getByRole('button')).toHaveClass(styles[variant])
+  },
+)
 ```
 
-Вариант с объектами понятнее, когда параметров больше двух, потому что у каждого значения есть имя.
+`as const` нужен TypeScript: он сужает тип элементов до `'primary' | 'secondary' | 'danger'`, и `styles[variant]` проходит проверку типов.
 
-### 2. `unique` со строками
-
-Добавьте в блок `describe('unique', ...)`:
-
-```ts
-it('работает со строками', () => {
-  expect(unique(['a', 'a', 'b'])).toEqual(['a', 'b'])
-})
-```
-
-Функция `unique<T>` обобщённая, поэтому TypeScript сам выведет `T = string`, и менять код функции не нужно. Для сравнения массивов используем `toEqual`, а не `toBe`: `toBe` сравнивает ссылки, а два разных массива с одинаковым содержимым не равны по ссылке.
-
-После сохранения в watch-режиме у вас должно прибавиться четыре теста: три из `it.each` и один для строк.
+Чтобы убедиться, что тест действительно проверяет класс, временно измените в `Button.tsx` строку с `classes`, например уберите `styles[variant]`. Тест должен упасть, и Vitest покажет, какого класса не хватает.
 
 ---
 
