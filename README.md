@@ -4,10 +4,10 @@
  
 | № | Тема | Что тестируем | Файл с тестами |
 |---|------|---------------|----------------|
-| **1** | **👉 Установка и настройка** | **конфиг, setup-файл, скрипты** | **`vite.config.ts`, `src/test/setup.ts`** |
+| 1 | Установка и настройка | конфиг, setup-файл, скрипты | `vite.config.ts`, `src/test/setup.ts` |
 | 2 | Первый тест: `describe`, `it`, `expect` | `add`, `divide` | `src/utils/math.test.ts` |
-| 3 | Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
-| 4 | Тест компонента: `render`, `screen`, запросы | `Button` | `src/components/Button/Button.test.tsx` |
+| 3 |  Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
+| **4** | **👉 Тест компонента: `render`, `screen`, запросы** | **`Button`** | **`src/components/Button/Button.test.tsx`** |
 | 5 | События пользователя и `vi.fn()` | `Counter`, `Button` | `src/components/Counter/Counter.test.tsx` |
 | 6 | Формы и доступные запросы | `LoginForm` | `src/components/LoginForm/LoginForm.test.tsx` |
 | 7 | Асинхронность и `vi.mock` | `UserCard` | `src/components/UserCard/UserCard.test.tsx` |
@@ -17,184 +17,103 @@
  
 ---
  
-## Урок 1. Установка и настройка (*уже готова*)
+## Урок 4. Тест компонента: `render`, `screen`, запросы
  
-**Цель:** запустить Vitest в проекте с React и CSS Modules.
+**Цель:** отрисовать компонент и найти в нём элементы так, как их видит пользователь.
  
-Vitest работает поверх Vite и берёт ваш `vite.config.ts`: те же плагины, те же алиасы, поэтому отдельный конфиг для тестов обычно не нужен.
-
-```bash
-npm i -D vitest jsdom @testing-library/react @testing-library/dom
-```
-
-```bash
-npm i -D @testing-library/user-event @testing-library/jest-dom
-```
-
-```bash
-npm i -D vitest @vitest/coverage-v8 @vitest/ui
-```
+Компонент — `src/components/Button/Button.tsx`, стили — `Button.module.css`.
  
-Что за что отвечает:
+```tsx
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { Button } from './Button'
+import styles from './Button.module.css'
  
-- `vitest` — сам раннер.
-- `jsdom` — имитация браузерного DOM в Node.js.
-- `@testing-library/react`, `@testing-library/dom` — рендер компонентов и поиск элементов.
-- `@testing-library/user-event` — реалистичные клики и ввод.
-- `@testing-library/jest-dom` — матчеры вида `toBeInTheDocument()`.
-- `@vitest/coverage-v8`, `@vitest/ui` — покрытие и веб-интерфейс (пригодятся в уроке 10).
-
-**`vite.config.ts`:**
+describe('Button', () => {
+  it('показывает переданный текст', () => {
+    render(<Button>Сохранить</Button>)
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
+  })
  
-```ts
-/// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
-import path from 'path'
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    css: {
-      include: /.+/,
-      modules: { classNameStrategy: 'non-scoped' },
-    },
-  },
+  it('применяет класс выбранного варианта', () => {
+    render(<Button variant="danger">Удалить</Button>)
+    const button = screen.getByRole('button', { name: 'Удалить' })
+    expect(button).toHaveClass(styles.danger)
+    expect(button).not.toHaveClass(styles.primary)
+  })
 })
 ```
  
-- Первая строка (`/// <reference ... />`) добавляет TypeScript знание о ключе `test`.
-- `environment: 'jsdom'` — без него `document` и `window` не существуют.
-- `setupFiles` — файл, который выполняется перед каждым тестовым файлом.
-- `css.include: /.+/` — по умолчанию Vitest не обрабатывает CSS; с этой настройкой `*.module.css` разбирается так же, как в браузере.
-- `classNameStrategy: 'non-scoped'` — вместо хешей вроде `_primary_1x2y3` в тестах будет `primary`. Читать упавшие тесты и снапшоты становится проще.
-
-**`src/test/setup.ts`:**
+- `render` кладёт компонент в jsdom. `screen` — точка входа для поиска.
+- Тестируем **поведение, видимое пользователю**, а не внутренности (состояние, имена функций).
+**Три семейства запросов**
  
-```ts
-import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+| Префикс | Элемента нет | Когда использовать |
+|---------|--------------|--------------------|
+| `getBy…` | бросает ошибку | элемент должен быть на странице сейчас |
+| `queryBy…` | возвращает `null` | проверить, что элемента **нет** |
+| `findBy…` | ждёт до 1000 мс, затем ошибка | элемент появится асинхронно |
  
-afterEach(() => {
-  cleanup()
-})
-```
+Для нескольких элементов — `getAllBy…`, `queryAllBy…`, `findAllBy…`.
  
-Первая строка подключает матчеры jest-dom к `expect` из Vitest. `cleanup` убирает отрендеренный компонент после каждого теста. Мы импортируем `describe`/`it`/`expect` явно (режим `globals` выключен), поэтому RTL не может зарегистрировать очистку автоматически.
+**Приоритет запросов** (от лучшего к худшему):
  
-**Скрипты в `package.json`:**
+1. `getByRole('button', { name: '…' })` — как видят пользователь и скринридер.
+2. `getByLabelText` — поля форм.
+3. `getByText` — нефункциональный текст.
+4. `getByTestId` — последний вариант, если ничего другого нет.
+**CSS Modules в тестах.** Не пишите `toHaveClass('primary')` вручную: импортируйте объект `styles` и используйте `styles.primary`. Тогда тест не сломается, если сменится стратегия имён классов.
  
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
-  }
-}
-```
- 
-- `vitest` — режим наблюдения: перезапускает только затронутые тесты при сохранении файла.
-- `vitest run` — один прогон, подходит для CI.
-
-**Задание:** выполните `npm test`. Должны пройти все тесты. Потом сломайте одну проверку (например, `toBe(5)` → `toBe(6)`) и посмотрите, как Vitest показывает разницу.
+**Задание:** добавьте в тест проверку, что `variant="secondary"` даёт класс `styles.secondary`.
 
 ---
 
 ## Решение задания
 
-Это делается в три шага.
+Тест добавляется в `src/components/Button/Button.test.tsx`, в блок `describe('Button', ...)`, рядом с тестом для `danger`. Новые импорты не нужны: `render`, `screen`, `it`, `expect` и `styles` там уже есть.
 
-**`src/utils/math.test.ts`:**
-```ts
-import { describe, expect, it } from 'vitest'
-import { add } from './math'
-
-describe('add', () => {
-  it('складывает два числа', () => {
-    expect(add(2, 3)).toBe(5)
-  })
+```tsx
+it('применяет класс варианта secondary', () => {
+  render(<Button variant="secondary">Отмена</Button>)
+  const button = screen.getByRole('button', { name: 'Отмена' })
+  expect(button).toHaveClass(styles.secondary)
+  expect(button).not.toHaveClass(styles.primary)
 })
 ```
 
-### 1. Запустите тесты
+Здесь два шага:
 
-В терминале, в папке проекта:
+1. `toHaveClass(styles.secondary)` проверяет, что у кнопки есть класс варианта. Значение берётся из импортированного объекта `styles`, а не из строки, поэтому тест не зависит от того, как называются классы после обработки CSS Modules.
+2. `not.toHaveClass(styles.primary)` проверяет, что кнопка не осталась с классом по умолчанию. Без этой строки тест прошёл бы и в случае, когда компонент добавляет оба класса.
 
-```bash
-npm test
+Если хотите проверить все три варианта одним блоком, примените `it.each` из урока 3:
+
+```tsx
+it.each(['primary', 'secondary', 'danger'] as const)(
+  'применяет класс варианта %s',
+  (variant) => {
+    render(<Button variant={variant}>Кнопка</Button>)
+    expect(screen.getByRole('button')).toHaveClass(styles[variant])
+  },
+)
 ```
 
-Vitest запустится в режиме наблюдения (watch) и не завершится сам. В выводе рядом с каждым файлом должна стоять зелёная галочка:
+`as const` нужен TypeScript: он сужает тип элементов до `'primary' | 'secondary' | 'danger'`, и `styles[variant]` проходит проверку типов.
 
-```
- ✓ src/utils/math.test.ts
- ...
- Test Files  1 passed (1)
-```
+Чтобы убедиться, что тест действительно проверяет класс, временно измените в `Button.tsx` строку с `classes`, например уберите `styles[variant]`. Тест должен упасть, и Vitest покажет, какого класса не хватает.
 
-Если команда не запускается, проверьте, что в `package.json` есть скрипт `"test": "vitest"` и что вы установили пакеты из урока 1.
+---
 
-### 2. Сломайте проверку
+## Навигация в watch-режиме (`npm test`)
 
-Не останавливая Vitest, откройте `src/utils/math.test.ts` и поменяйте одну строку:
+При запуске тестов в режиме наблюдения доступны следующие горячие клавиши:
 
-```ts
-expect(add(2, 3)).toBe(5)   // было
-expect(add(2, 3)).toBe(6)   // стало
-```
-
-Сохраните файл. Vitest сам перезапустит этот тест.
-
-### 3. Прочитайте сообщение об ошибке
-
-Вывод будет примерно таким:
-
-```
- FAIL  src/utils/math.test.ts > add > складывает два числа
-AssertionError: expected 5 to be 6 // Object.is equality
-
-- Expected
-+ Received
-
-- 6
-+ 5
-
- ❯ src/utils/math.test.ts:6:21
-      5|   it('складывает два числа', () => {
-      6|     expect(add(2, 3)).toBe(6)
-       |                       ^
-```
-
-Как это читать:
-
-- `FAIL … > add > складывает два числа` показывает путь к тесту: файл, блок `describe` и название `it`.
-- `expected 5 to be 6` говорит, что ожидали 6, а функция вернула 5.
-- Блок `Expected` / `Received` — это diff: `-` обозначает ожидаемое значение, `+` — фактическое. Для объектов и массивов в нём подсвечиваются только отличающиеся поля, и это особенно удобно.
-- Ниже указана точная строка в файле, где упала проверка (`6:21` — строка 6, столбец 21).
-
-### Верните всё как было
-
-Поменяйте `6` обратно на `5` и сохраните. Тест снова позеленеет.
-
-### Что ещё попробовать в watch-режиме
-
-Нажмите в терминале:
-
-- `a` — запустить все тесты заново;
-- `f` — запустить только упавшие;
-- `p` — отфильтровать по имени файла;
-- `h` — показать все команды;
-- `q` — выйти.
-
-Для более наглядного diff сломайте проверку на массиве: в тесте `unique` замените `[3, 1, 2]` на `[3, 1, 5]`. Vitest покажет, какой именно элемент не совпал.
+* `a` — запустить все тесты заново
+* `f` — запустить только упавшие тесты
+* `p` — фильтр тестов по имени файла
+* `t` — фильтр по названию теста
+* `h` — показать справку по всем командам
+* `q` — выйти из режима наблюдения
 
 ---
 
