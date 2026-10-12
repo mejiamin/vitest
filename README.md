@@ -7,8 +7,8 @@
 | 1 | Установка и настройка | конфиг, setup-файл, скрипты | `vite.config.ts`, `src/test/setup.ts` |
 | 2 | Первый тест: `describe`, `it`, `expect` | `add`, `divide` | `src/utils/math.test.ts` |
 | 3 |  Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
-| **4** | **👉 Тест компонента: `render`, `screen`, запросы** | **`Button`** | **`src/components/Button/Button.test.tsx`** |
-| 5 | События пользователя и `vi.fn()` | `Counter`, `Button` | `src/components/Counter/Counter.test.tsx` |
+| 4 | Тест компонента: `render`, `screen`, запросы | `Button` | `src/components/Button/Button.test.tsx` |
+| **5** | **👉 События пользователя и `vi.fn()`** | **`Counter`, `Button`** | **`src/components/Counter/Counter.test.tsx`** |
 | 6 | Формы и доступные запросы | `LoginForm` | `src/components/LoginForm/LoginForm.test.tsx` |
 | 7 | Асинхронность и `vi.mock` | `UserCard` | `src/components/UserCard/UserCard.test.tsx` |
 | 8 | Таймеры: `vi.useFakeTimers` | `SearchBox` (debounce) | `src/components/SearchBox/SearchBox.test.tsx` |
@@ -17,90 +17,98 @@
  
 ---
  
-## Урок 4. Тест компонента: `render`, `screen`, запросы
+## Урок 5. События пользователя и `vi.fn()`
  
-**Цель:** отрисовать компонент и найти в нём элементы так, как их видит пользователь.
+**Цель:** кликать по компонентам и проверять вызовы колбэков.
  
-Компонент — `src/components/Button/Button.tsx`, стили — `Button.module.css`.
+Компонент — `src/components/Counter/Counter.tsx`.
  
 ```tsx
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { Button } from './Button'
-import styles from './Button.module.css'
+import userEvent from '@testing-library/user-event'
  
-describe('Button', () => {
-  it('показывает переданный текст', () => {
-    render(<Button>Сохранить</Button>)
-    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
-  })
+it('увеличивает и уменьшает значение', async () => {
+  const user = userEvent.setup()
+  render(<Counter initial={5} />)
  
-  it('применяет класс выбранного варианта', () => {
-    render(<Button variant="danger">Удалить</Button>)
-    const button = screen.getByRole('button', { name: 'Удалить' })
-    expect(button).toHaveClass(styles.danger)
-    expect(button).not.toHaveClass(styles.primary)
-  })
+  await user.click(screen.getByRole('button', { name: 'Увеличить' }))
+  await user.click(screen.getByRole('button', { name: 'Увеличить' }))
+  expect(screen.getByLabelText('Текущее значение')).toHaveTextContent('7')
 })
 ```
  
-- `render` кладёт компонент в jsdom. `screen` — точка входа для поиска.
-- Тестируем **поведение, видимое пользователю**, а не внутренности (состояние, имена функций).
-**Три семейства запросов**
+- `userEvent.setup()` вызывайте **до** `render`. Все действия асинхронны — всегда пишите `await`.
+- `user.click`, `user.type`, `user.keyboard('{Enter}')`, `user.hover`, `user.tab` повторяют настоящие события браузера (в отличие от `fireEvent`).
+- Отключённую кнопку проверяйте через `toBeDisabled()`.
+**Шпионы и моки: `vi.fn()`**
  
-| Префикс | Элемента нет | Когда использовать |
-|---------|--------------|--------------------|
-| `getBy…` | бросает ошибку | элемент должен быть на странице сейчас |
-| `queryBy…` | возвращает `null` | проверить, что элемента **нет** |
-| `findBy…` | ждёт до 1000 мс, затем ошибка | элемент появится асинхронно |
+```tsx
+it('вызывает onClick при клике', async () => {
+  const user = userEvent.setup()
+  const onClick = vi.fn()
+  render(<Button onClick={onClick}>Нажми</Button>)
  
-Для нескольких элементов — `getAllBy…`, `queryAllBy…`, `findAllBy…`.
+  await user.click(screen.getByRole('button', { name: 'Нажми' }))
  
-**Приоритет запросов** (от лучшего к худшему):
+  expect(onClick).toHaveBeenCalledTimes(1)
+})
+```
  
-1. `getByRole('button', { name: '…' })` — как видят пользователь и скринридер.
-2. `getByLabelText` — поля форм.
-3. `getByText` — нефункциональный текст.
-4. `getByTestId` — последний вариант, если ничего другого нет.
-**CSS Modules в тестах.** Не пишите `toHaveClass('primary')` вручную: импортируйте объект `styles` и используйте `styles.primary`. Тогда тест не сломается, если сменится стратегия имён классов.
+`vi.fn()` создаёт функцию-заглушку, которая запоминает свои вызовы:
  
-**Задание:** добавьте в тест проверку, что `variant="secondary"` даёт класс `styles.secondary`.
+| Проверка | Смысл |
+|----------|-------|
+| `toHaveBeenCalled()` | вызвана хотя бы раз |
+| `toHaveBeenCalledTimes(n)` | вызвана ровно n раз |
+| `toHaveBeenCalledWith(a, b)` | вызвана с такими аргументами |
+| `not.toHaveBeenCalled()` | не вызывалась |
+ 
+Заглушке можно задать поведение: `vi.fn().mockReturnValue(42)`, `.mockResolvedValue(data)`, `.mockRejectedValue(error)`, `.mockImplementation(fn)`.
+ 
+**Задание:** напишите тест, что после трёх кликов по «Увеличить» и одного по «Сбросить» счётчик равен начальному значению.
 
 ---
 
 ## Решение задания
 
-Тест добавляется в `src/components/Button/Button.test.tsx`, в блок `describe('Button', ...)`, рядом с тестом для `danger`. Новые импорты не нужны: `render`, `screen`, `it`, `expect` и `styles` там уже есть.
+Тест добавляется в `src/components/Counter/Counter.test.tsx`, в блок `describe('Counter', ...)`. Импорты уже есть, там же определена функция `getValue`.
 
 ```tsx
-it('применяет класс варианта secondary', () => {
-  render(<Button variant="secondary">Отмена</Button>)
-  const button = screen.getByRole('button', { name: 'Отмена' })
-  expect(button).toHaveClass(styles.secondary)
-  expect(button).not.toHaveClass(styles.primary)
-})
+it(
+  'после трёх кликов «Увеличить» и «Сбросить» возвращает начальное значение',
+  async () => {
+    const user = userEvent.setup()
+    render(<Counter initial={2} />)
+
+    const increase = screen.getByRole('button', { name: 'Увеличить' })
+    await user.click(increase)
+    await user.click(increase)
+    await user.click(increase)
+    expect(getValue()).toHaveTextContent('5')
+
+    await user.click(screen.getByRole('button', { name: 'Сбросить' }))
+
+    expect(getValue()).toHaveTextContent('2')
+  })
 ```
 
-Здесь два шага:
+Что здесь происходит:
 
-1. `toHaveClass(styles.secondary)` проверяет, что у кнопки есть класс варианта. Значение берётся из импортированного объекта `styles`, а не из строки, поэтому тест не зависит от того, как называются классы после обработки CSS Modules.
-2. `not.toHaveClass(styles.primary)` проверяет, что кнопка не осталась с классом по умолчанию. Без этой строки тест прошёл бы и в случае, когда компонент добавляет оба класса.
+1. `initial={2}` берём не случайно: если бы начальное значение было `0`, тест мог бы пройти и при «сбросе в ноль», не проверяя, что используется именно `initial`.
+2. Промежуточная проверка `toHaveTextContent('5')` подтверждает, что три клика сработали. Без неё, если клики сломаются, тест всё равно мог бы зеленеть: значение осталось бы `2`.
+3. Кнопку «Увеличить» достаём один раз и кликаем по ней трижды. Это безопасно, потому что React не пересоздаёт DOM-элемент кнопки между рендерами (меняется только текст в `<output>`).
+4. Каждый `user.click` нужно писать с `await`, иначе проверка выполнится раньше, чем клик обработается.
 
-Если хотите проверить все три варианта одним блоком, примените `it.each` из урока 3:
+Кликов можно сделать меньше строк через цикл:
 
 ```tsx
-it.each(['primary', 'secondary', 'danger'] as const)(
-  'применяет класс варианта %s',
-  (variant) => {
-    render(<Button variant={variant}>Кнопка</Button>)
-    expect(screen.getByRole('button')).toHaveClass(styles[variant])
-  },
-)
+for (let i = 0; i < 3; i++) {
+  await user.click(increase)
+}
 ```
 
-`as const` нужен TypeScript: он сужает тип элементов до `'primary' | 'secondary' | 'danger'`, и `styles[variant]` проходит проверку типов.
+Для трёх повторений явные три строки читаются проще, но если кликов станет десять, цикл удобнее.
 
-Чтобы убедиться, что тест действительно проверяет класс, временно измените в `Button.tsx` строку с `classes`, например уберите `styles[variant]`. Тест должен упасть, и Vitest покажет, какого класса не хватает.
+Чтобы убедиться, что тест ловит ошибку, временно замените в `Counter.tsx` `setCount(initial)` на `setCount(0)`. Тест должен упасть: ожидалось `2`, получено `0`.
 
 ---
 
