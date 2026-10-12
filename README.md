@@ -4,11 +4,11 @@
  
 | № | Тема | Что тестируем | Файл с тестами |
 |---|------|---------------|----------------|
-| **1** | **👉 Установка и настройка** | **конфиг, setup-файл, скрипты** | **`vite.config.ts`, `src/test/setup.ts`** |
+| 1 | Установка и настройка | конфиг, setup-файл, скрипты | `vite.config.ts`, `src/test/setup.ts` |
 | 2 | Первый тест: `describe`, `it`, `expect` | `add`, `divide` | `src/utils/math.test.ts` |
-| 3 | Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
+| 3 |  Матчеры, `it.each`, `beforeEach` | `clamp`, `average`, `unique` | `src/utils/math.test.ts` |
 | 4 | Тест компонента: `render`, `screen`, запросы | `Button` | `src/components/Button/Button.test.tsx` |
-| 5 | События пользователя и `vi.fn()` | `Counter`, `Button` | `src/components/Counter/Counter.test.tsx` |
+| **5** | **👉 События пользователя и `vi.fn()`** | **`Counter`, `Button`** | **`src/components/Counter/Counter.test.tsx`** |
 | 6 | Формы и доступные запросы | `LoginForm` | `src/components/LoginForm/LoginForm.test.tsx` |
 | 7 | Асинхронность и `vi.mock` | `UserCard` | `src/components/UserCard/UserCard.test.tsx` |
 | 8 | Таймеры: `vi.useFakeTimers` | `SearchBox` (debounce) | `src/components/SearchBox/SearchBox.test.tsx` |
@@ -17,184 +17,111 @@
  
 ---
  
-## Урок 1. Установка и настройка (*уже готова*)
+## Урок 5. События пользователя и `vi.fn()`
  
-**Цель:** запустить Vitest в проекте с React и CSS Modules.
+**Цель:** кликать по компонентам и проверять вызовы колбэков.
  
-Vitest работает поверх Vite и берёт ваш `vite.config.ts`: те же плагины, те же алиасы, поэтому отдельный конфиг для тестов обычно не нужен.
-
-```bash
-npm i -D vitest jsdom @testing-library/react @testing-library/dom
-```
-
-```bash
-npm i -D @testing-library/user-event @testing-library/jest-dom
-```
-
-```bash
-npm i -D vitest @vitest/coverage-v8 @vitest/ui
-```
+Компонент — `src/components/Counter/Counter.tsx`.
  
-Что за что отвечает:
+```tsx
+import userEvent from '@testing-library/user-event'
  
-- `vitest` — сам раннер.
-- `jsdom` — имитация браузерного DOM в Node.js.
-- `@testing-library/react`, `@testing-library/dom` — рендер компонентов и поиск элементов.
-- `@testing-library/user-event` — реалистичные клики и ввод.
-- `@testing-library/jest-dom` — матчеры вида `toBeInTheDocument()`.
-- `@vitest/coverage-v8`, `@vitest/ui` — покрытие и веб-интерфейс (пригодятся в уроке 10).
-
-**`vite.config.ts`:**
+it('увеличивает и уменьшает значение', async () => {
+  const user = userEvent.setup()
+  render(<Counter initial={5} />)
  
-```ts
-/// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
-import path from 'path'
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    css: {
-      include: /.+/,
-      modules: { classNameStrategy: 'non-scoped' },
-    },
-  },
+  await user.click(screen.getByRole('button', { name: 'Увеличить' }))
+  await user.click(screen.getByRole('button', { name: 'Увеличить' }))
+  expect(screen.getByLabelText('Текущее значение')).toHaveTextContent('7')
 })
 ```
  
-- Первая строка (`/// <reference ... />`) добавляет TypeScript знание о ключе `test`.
-- `environment: 'jsdom'` — без него `document` и `window` не существуют.
-- `setupFiles` — файл, который выполняется перед каждым тестовым файлом.
-- `css.include: /.+/` — по умолчанию Vitest не обрабатывает CSS; с этой настройкой `*.module.css` разбирается так же, как в браузере.
-- `classNameStrategy: 'non-scoped'` — вместо хешей вроде `_primary_1x2y3` в тестах будет `primary`. Читать упавшие тесты и снапшоты становится проще.
-
-**`src/test/setup.ts`:**
+- `userEvent.setup()` вызывайте **до** `render`. Все действия асинхронны — всегда пишите `await`.
+- `user.click`, `user.type`, `user.keyboard('{Enter}')`, `user.hover`, `user.tab` повторяют настоящие события браузера (в отличие от `fireEvent`).
+- Отключённую кнопку проверяйте через `toBeDisabled()`.
+**Шпионы и моки: `vi.fn()`**
  
-```ts
-import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+```tsx
+it('вызывает onClick при клике', async () => {
+  const user = userEvent.setup()
+  const onClick = vi.fn()
+  render(<Button onClick={onClick}>Нажми</Button>)
  
-afterEach(() => {
-  cleanup()
+  await user.click(screen.getByRole('button', { name: 'Нажми' }))
+ 
+  expect(onClick).toHaveBeenCalledTimes(1)
 })
 ```
  
-Первая строка подключает матчеры jest-dom к `expect` из Vitest. `cleanup` убирает отрендеренный компонент после каждого теста. Мы импортируем `describe`/`it`/`expect` явно (режим `globals` выключен), поэтому RTL не может зарегистрировать очистку автоматически.
+`vi.fn()` создаёт функцию-заглушку, которая запоминает свои вызовы:
  
-**Скрипты в `package.json`:**
+| Проверка | Смысл |
+|----------|-------|
+| `toHaveBeenCalled()` | вызвана хотя бы раз |
+| `toHaveBeenCalledTimes(n)` | вызвана ровно n раз |
+| `toHaveBeenCalledWith(a, b)` | вызвана с такими аргументами |
+| `not.toHaveBeenCalled()` | не вызывалась |
  
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
-  }
-}
-```
+Заглушке можно задать поведение: `vi.fn().mockReturnValue(42)`, `.mockResolvedValue(data)`, `.mockRejectedValue(error)`, `.mockImplementation(fn)`.
  
-- `vitest` — режим наблюдения: перезапускает только затронутые тесты при сохранении файла.
-- `vitest run` — один прогон, подходит для CI.
-
-**Задание:** выполните `npm test`. Должны пройти все тесты. Потом сломайте одну проверку (например, `toBe(5)` → `toBe(6)`) и посмотрите, как Vitest показывает разницу.
+**Задание:** напишите тест, что после трёх кликов по «Увеличить» и одного по «Сбросить» счётчик равен начальному значению.
 
 ---
 
 ## Решение задания
 
-Это делается в три шага.
+Тест добавляется в `src/components/Counter/Counter.test.tsx`, в блок `describe('Counter', ...)`. Импорты уже есть, там же определена функция `getValue`.
 
-**`src/utils/math.test.ts`:**
-```ts
-import { describe, expect, it } from 'vitest'
-import { add } from './math'
+```tsx
+it(
+  'после трёх кликов «Увеличить» и «Сбросить» возвращает начальное значение',
+  async () => {
+    const user = userEvent.setup()
+    render(<Counter initial={2} />)
 
-describe('add', () => {
-  it('складывает два числа', () => {
-    expect(add(2, 3)).toBe(5)
+    const increase = screen.getByRole('button', { name: 'Увеличить' })
+    await user.click(increase)
+    await user.click(increase)
+    await user.click(increase)
+    expect(getValue()).toHaveTextContent('5')
+
+    await user.click(screen.getByRole('button', { name: 'Сбросить' }))
+
+    expect(getValue()).toHaveTextContent('2')
   })
-})
 ```
 
-### 1. Запустите тесты
+Что здесь происходит:
 
-В терминале, в папке проекта:
+1. `initial={2}` берём не случайно: если бы начальное значение было `0`, тест мог бы пройти и при «сбросе в ноль», не проверяя, что используется именно `initial`.
+2. Промежуточная проверка `toHaveTextContent('5')` подтверждает, что три клика сработали. Без неё, если клики сломаются, тест всё равно мог бы зеленеть: значение осталось бы `2`.
+3. Кнопку «Увеличить» достаём один раз и кликаем по ней трижды. Это безопасно, потому что React не пересоздаёт DOM-элемент кнопки между рендерами (меняется только текст в `<output>`).
+4. Каждый `user.click` нужно писать с `await`, иначе проверка выполнится раньше, чем клик обработается.
 
-```bash
-npm test
+Кликов можно сделать меньше строк через цикл:
+
+```tsx
+for (let i = 0; i < 3; i++) {
+  await user.click(increase)
+}
 ```
 
-Vitest запустится в режиме наблюдения (watch) и не завершится сам. В выводе рядом с каждым файлом должна стоять зелёная галочка:
+Для трёх повторений явные три строки читаются проще, но если кликов станет десять, цикл удобнее.
 
-```
- ✓ src/utils/math.test.ts
- ...
- Test Files  1 passed (1)
-```
+Чтобы убедиться, что тест ловит ошибку, временно замените в `Counter.tsx` `setCount(initial)` на `setCount(0)`. Тест должен упасть: ожидалось `2`, получено `0`.
 
-Если команда не запускается, проверьте, что в `package.json` есть скрипт `"test": "vitest"` и что вы установили пакеты из урока 1.
+---
 
-### 2. Сломайте проверку
+## Навигация в watch-режиме (`npm test`)
 
-Не останавливая Vitest, откройте `src/utils/math.test.ts` и поменяйте одну строку:
+При запуске тестов в режиме наблюдения доступны следующие горячие клавиши:
 
-```ts
-expect(add(2, 3)).toBe(5)   // было
-expect(add(2, 3)).toBe(6)   // стало
-```
-
-Сохраните файл. Vitest сам перезапустит этот тест.
-
-### 3. Прочитайте сообщение об ошибке
-
-Вывод будет примерно таким:
-
-```
- FAIL  src/utils/math.test.ts > add > складывает два числа
-AssertionError: expected 5 to be 6 // Object.is equality
-
-- Expected
-+ Received
-
-- 6
-+ 5
-
- ❯ src/utils/math.test.ts:6:21
-      5|   it('складывает два числа', () => {
-      6|     expect(add(2, 3)).toBe(6)
-       |                       ^
-```
-
-Как это читать:
-
-- `FAIL … > add > складывает два числа` показывает путь к тесту: файл, блок `describe` и название `it`.
-- `expected 5 to be 6` говорит, что ожидали 6, а функция вернула 5.
-- Блок `Expected` / `Received` — это diff: `-` обозначает ожидаемое значение, `+` — фактическое. Для объектов и массивов в нём подсвечиваются только отличающиеся поля, и это особенно удобно.
-- Ниже указана точная строка в файле, где упала проверка (`6:21` — строка 6, столбец 21).
-
-### Верните всё как было
-
-Поменяйте `6` обратно на `5` и сохраните. Тест снова позеленеет.
-
-### Что ещё попробовать в watch-режиме
-
-Нажмите в терминале:
-
-- `a` — запустить все тесты заново;
-- `f` — запустить только упавшие;
-- `p` — отфильтровать по имени файла;
-- `h` — показать все команды;
-- `q` — выйти.
-
-Для более наглядного diff сломайте проверку на массиве: в тесте `unique` замените `[3, 1, 2]` на `[3, 1, 5]`. Vitest покажет, какой именно элемент не совпал.
+* `a` — запустить все тесты заново
+* `f` — запустить только упавшие тесты
+* `p` — фильтр тестов по имени файла
+* `t` — фильтр по названию теста
+* `h` — показать справку по всем командам
+* `q` — выйти из режима наблюдения
 
 ---
 
